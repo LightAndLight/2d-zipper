@@ -3,7 +3,9 @@
 {-# language RankNTypes #-}
 module Data.Zipper.TwoD where
 
+import Control.Applicative
 import Control.Comonad
+import Control.Monad
 import Control.Lens
 import Data.Maybe
 import Data.Profunctor
@@ -192,3 +194,37 @@ zipGrid' g =
 
 (<->) :: Iso' a b -> Loc' a a -> Loc' b b
 (<->) f = dimap (view $ from f) (view f)
+
+data Grid a
+  = GridCell { _gElem :: a, _gDown :: Grid a, _gRight :: Grid a }
+  | GridEmpty
+  deriving Show
+
+toGridRows
+  :: [a] -- Rights
+  -> Maybe [Grid a] -- Belows
+  -> [Grid a]
+toGridRows [] _ = [GridEmpty]
+toGridRows (x:xs) belows =
+  GridCell { _gElem = x, _gDown = b, _gRight = foldr const GridEmpty rest } : rest
+  where
+    rest = toGridRows xs bs
+    (b, bs) = case belows of
+      Just (b:bs) -> (b, Just bs)
+      _ -> (GridEmpty, belows)
+
+toGridColumns :: [[a]] -> [[Grid a]]
+toGridColumns [] = [[GridEmpty]] 
+toGridColumns (x:xs) = toGridRows x (listToMaybe rest) : rest
+  where
+    rest = toGridColumns xs
+
+toGrid :: [[a]] -> Grid a
+toGrid = head . head . toGridColumns
+
+fromGrid :: Grid a -> [[a]]
+fromGrid GridEmpty = []
+fromGrid g@(GridCell _ d _) = fromGridRow g : fromGrid d
+  where
+    fromGridRow GridEmpty = []
+    fromGridRow (GridCell a' _ r') = a' : fromGridRow r'
